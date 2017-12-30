@@ -1,0 +1,4 @@
+*.txt
+*.model
+.idea/*
+.DS_Store
