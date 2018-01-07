@@ -4,6 +4,9 @@ import tensorflow as tf
 import cnn_model
 import make_data
 import config
+import make_word_vec
+import numpy as np
+import random
 
 # 定数
 # 単語ベクトルのサイズ
@@ -68,3 +71,84 @@ W_o = tf.Variable(tf.truncated_normal([filter_num_total, class_num], stddev=0.1)
 b_o = tf.Variable(tf.constant(0.1, shape=[class_num]), name="b")
 scores = tf.nn.xw_plus_b(h_drop, W_o, b_o, name="scores")
 predictions = tf.argmax(scores, 1, name="predictions")
+
+# トレーニング及びテスト
+# コスト関数（交差エントロピー）
+losses = tf.nn.softmax_cross_entropy_with_logits(scores, y_)
+loss = tf.reduce_mean(losses)
+
+# 正答率
+correct_predictions = tf.equal(predictions, tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+# Adamオプティマイザーによるパラメータの最適化
+global_step = tf.Variable(0, name="global_step", trainable=False)
+optimizer = tf.train.AdamOptimizer(1e-4)
+grads_and_vars = optimizer.compute_gradients(loss)
+train_step = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+
+
+## 実際のトレーニングの処理を作成
+all_vec = make_word_vec.makeVectorData()
+
+ary_dokujo = make_word_vec.convertInputOutput(all_vec,'dokujo-tsushin')
+ary_itlifehack = make_word_vec.convertInputOutput(all_vec,'it-life-hack')
+ary_kadenchannel = make_word_vec.convertInputOutput(all_vec,'kaden-channel')
+ary_livedoorhomme = make_word_vec.convertInputOutput(all_vec,'livedoor-homme')
+ary_movieenter = make_word_vec.convertInputOutput(all_vec,'movie-enter')
+ary_peachy = make_word_vec.convertInputOutput(all_vec,'peachy')
+ary_smax = make_word_vec.convertInputOutput(all_vec,'smax')
+ary_sportswatch = make_word_vec.convertInputOutput(all_vec,'sports-watch')
+ary_topicnews = make_word_vec.convertInputOutput(all_vec,'topic-news')
+
+ary_train = np.r_[ary_dokujo[0]
+,ary_itlifehack[0]
+,ary_kadenchannel[0]
+,ary_livedoorhomme[0]
+,ary_movieenter[0]
+,ary_peachy[0]
+,ary_smax[0]
+,ary_sportswatch[0]
+,ary_topicnews[0]
+]
+
+ary_test = np.r_[ary_dokujo[1]
+,ary_itlifehack[1]
+,ary_kadenchannel[1]
+,ary_livedoorhomme[1]
+,ary_movieenter[1]
+,ary_peachy[1]
+,ary_smax[1]
+,ary_sportswatch[1]
+,ary_topicnews[1]
+]
+
+# 各テンソルのイニシャライズ
+init = tf.initialize_all_variables()
+
+sess = tf.Session()
+sess.run(init)
+
+# 14000回のイテレーション
+for i in range(14000):
+    # ミニバッチ（100件ランダムで取得）
+    # training_xyには、modelsで定義した各文書行列及び正解ラベル（カテゴリ）が入っている
+    samples = random.sample(ary_train, 100)
+    batch_xs = [s[0] for s in samples]
+    batch_ys = [s[1] for s in samples]
+    # 確率的勾配降下法を使い最適なパラメータを求める
+    # dropout_keep_probは0.5を指定
+    sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys, dropout_keep_prob: 0.5})
+    if i % 100 == 0:
+        # 100件毎に正答率を表示
+        a = sess.run(accuracy, feed_dict={x: batch_xs, y_: batch_ys, dropout_keep_prob: 0.5})
+        print("TRAINING(%d): %.0f%%" % (i, (a * 100.0)))
+
+# テストでーた
+test_samples = random.sample(ary_test, 100)
+test_x = test_samples[0][0]
+test_y = test_samples[0][1]
+
+# テストデータの正答率
+a = sess.run(accuracy, feed_dict={x: test_x, y_: test_y, dropout_keep_prob: 1.0})
+print("TEST DATA ACCURACY: %.0f%%" % (a * 100.0))
